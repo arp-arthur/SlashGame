@@ -4,12 +4,16 @@
 #include "Enemy/Enemy.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Slash/DebugMacros.h"
 #include "Animation/AnimMontage.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/AttributeComponent.h"
 #include "HUD/HealthBarComponent.h"
+#include "AIController.h"
+#include "Perception/PawnSensingComponent.h"
+
 
 // Sets default values
 AEnemy::AEnemy()
@@ -28,6 +32,14 @@ AEnemy::AEnemy()
 	HealthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("HealthBar"));
 	HealthBarWidget->SetupAttachment(GetRootComponent());
 	
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
+	bUseControllerRotationPitch = false;
+
+	PawnSensing = CreateDefaultSubobject<UPawnSensingComponent>(TEXT("PawnSensing"));
+	PawnSensing->SightRadius = 1000.f;
+	PawnSensing->SetPeripheralVisionAngle(45.f);
 }
 
 // Called when the game starts or when spawned
@@ -39,6 +51,13 @@ void AEnemy::BeginPlay()
 		HealthBarWidget->SetVisibility(false);
 	}
 	
+	EnemyController = Cast<AAIController>(GetController());
+	MoveToTarget(PatrolTarget);
+
+	if (PawnSensing)
+	{
+		PawnSensing->OnSeePawn.AddDynamic(this, &AEnemy::PawnSeen);
+	}
 }
 
 void AEnemy::PlayGetHitMontage(const FName& SectionName)
@@ -65,24 +84,84 @@ void AEnemy::Die()
 	SetLifeSpan(15.f);
 }
 
+bool AEnemy::InTargetRange(AActor* Target, double Radius)
+{
+	if (Target == nullptr) return false;
+	const double DistanceToTargetPoint = (Target->GetActorLocation() - GetActorLocation()).Size();
+	DRAW_SPHERE_SINGLE_FRAGME(GetActorLocation());
+	DRAW_SPHERE_SINGLE_FRAGME(Target->GetActorLocation());
+	return DistanceToTargetPoint <= Radius;
+}
+
+void AEnemy::MoveToTarget(AActor* Target)
+{
+	if (EnemyController == nullptr || Target == nullptr) return;
+	FAIMoveRequest MoveRequest;
+	MoveRequest.SetGoalActor(PatrolTarget);
+	MoveRequest.SetAcceptanceRadius(15.f);
+	FNavPathSharedPtr NavPath;
+	EnemyController->MoveTo(MoveRequest);
+	
+	
+}
+
+AActor* AEnemy::ChoosePatrolTarget()
+{
+	TArray<AActor*> ValidTargets;
+	for (AActor* Target : PatrolTargets)
+	{
+		if (Target != PatrolTarget)
+		{
+			ValidTargets.AddUnique(Target);
+		}
+	}
+
+	const int32 NumOfPatrolTargets = ValidTargets.Num();
+	if (NumOfPatrolTargets > 0) {
+		const int32 TargetSelection = FMath::RandRange(0, NumOfPatrolTargets - 1);
+		return ValidTargets[TargetSelection];
+	}
+
+	return nullptr;
+}
+
+void AEnemy::PawnSeen(APawn* SeenPawn)
+{
+	UE_LOG(LogTemp, Display, TEXT("I SEE YOU"));
+}
+
+void AEnemy::PatrolTimerFinished()
+{
+	MoveToTarget(PatrolTarget);
+}
+
 // Called every frame
 void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (CombatTarget)
-	{
-		const double DistanceToTarget = (CombatTarget->GetActorLocation() - GetActorLocation()).Size();
-		if (DistanceToTarget > CombatRadius)
-		{
-			CombatTarget = nullptr;
-			if (HealthBarWidget) {
-				HealthBarWidget->SetVisibility(false);
-			}
-		}
-		
-	}
+	CheckCombatTarget();
+	CheckPatrolTarget();
+}
 
+void AEnemy::CheckPatrolTarget()
+{
+	if (InTargetRange(PatrolTarget, PatrolRadius))
+	{
+		PatrolTarget = ChoosePatrolTarget();
+		GetWorldTimerManager().SetTimer(PatrolTimer, this, &AEnemy::PatrolTimerFinished, FMath::RandRange(0.f, 5.f));
+	}
+}
+
+void AEnemy::CheckCombatTarget()
+{
+	if (!InTargetRange(CombatTarget, CombatRadius))
+	{
+		CombatTarget = nullptr;
+		if (HealthBarWidget) {
+			HealthBarWidget->SetVisibility(false);
+		}
+	}
 }
 
 // Called to bind functionality to input

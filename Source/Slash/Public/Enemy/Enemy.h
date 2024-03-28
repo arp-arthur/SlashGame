@@ -6,32 +6,41 @@
 #include "GameFramework/Character.h"
 #include "Interfaces/HitInterface.h"
 #include "Characters/CharacterTypes.h"
+#include "Characters/BaseCharacter.h"
 #include "Enemy.generated.h"
 
-class UAnimMontage;
-class UAttributeComponent;
 class UHealthBarComponent;
 class AAIController;
 class UPawnSensingComponent;
 
 UCLASS()
-class SLASH_API AEnemy : public ACharacter, public IHitInterface
+class SLASH_API AEnemy : public ABaseCharacter
 {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
 	AEnemy();
 
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+	/** <IHitInterface> */
+	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
+	/** </IHitInterface> */
+
+	/** <ABaseCharacter> */
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+	/** </ABaseCharacter> */
 protected:
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	/**
-	* Play Animations Montages Functions
-	*/
-	void PlayGetHitMontage(const FName& SectionName);
-	void Die();
+	virtual void Die() override;
+
+	virtual void Attack() override;
+	virtual bool CanAttack() override;
+	virtual void PlayAttackMontages() override;
 
 	bool InTargetRange(AActor* Target, double Radius);
 	void MoveToTarget(AActor* Target);
@@ -42,14 +51,15 @@ protected:
 
 	// Enum Death
 	UPROPERTY(BlueprintReadOnly)
-	EDeathPose DeathPose = EDeathPose::EDP_Alive;
+	EDeathPose DeathPose;
+
+	UPROPERTY(BlueprintReadOnly)
+	EEnemyState EnemyState = EEnemyState::EES_Patrolling;
 
 private:
-	/**
-	* Components
-	*/
-	UPROPERTY(VisibleAnywhere)
-	UAttributeComponent* Attributes;
+	/** AI Behavior */
+	void CheckPatrolTarget();
+	void CheckCombatTarget();
 
 	UPROPERTY(VisibleAnywhere)
 	UHealthBarComponent* HealthBarWidget;
@@ -61,7 +71,7 @@ private:
 	AActor* CombatTarget;
 
 	UPROPERTY(EditAnywhere)
-	double CombatRadius = 500.f;
+	double CombatRadius = 1000.f;
 
 	UPROPERTY(EditAnywhere)
 	double PatrolRadius = 200.f;
@@ -69,39 +79,6 @@ private:
 	UPROPERTY(EditAnywhere)
 	double AttackRadius = 150.f;
 
-
-	FTimerHandle PatrolTimer;
-	void PatrolTimerFinished();
-
-	UPROPERTY(EditAnywhere, Category = "AI Navigation")
-	float WaitMin = 5.f;
-
-	UPROPERTY(EditAnywhere, Category = "AI Navigation")
-	float WaitMax = 10.f;
-
-	EEnemyState EnemyState = EEnemyState::EES_Patrolling;
-
-
-	/**
-	* Animations Montages
-	*/
-	UPROPERTY(EditDefaultsOnly, Category = Montages)
-	UAnimMontage* GetHitMontage;
-
-	UPROPERTY(EditDefaultsOnly, Category = Montages)
-	UAnimMontage* DeathMontage;
-
-	UPROPERTY(EditAnywhere, Category = Sounds)
-	USoundBase* HitSound;
-
-	UPROPERTY(EditAnywhere, Category = VisualEffects)
-	UParticleSystem* HitParticles;
-
-
-	/**
-	* Navigation
-	*/
-	// Current Patrol Target
 	UPROPERTY(EditInstanceOnly, Category = "AI Navigation")
 	AActor* PatrolTarget;
 
@@ -111,20 +88,53 @@ private:
 	UPROPERTY()
 	AAIController* EnemyController;
 
+	FTimerHandle PatrolTimer;
+	void PatrolTimerFinished();
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+	UPROPERTY(EditAnywhere, Category = "AI Navigation")
+	float PatrolWaitMin = 5.f;
 
-	void CheckPatrolTarget();
+	UPROPERTY(EditAnywhere, Category = "AI Navigation")
+	float PatrolWaitMax = 10.f;
 
-	void CheckCombatTarget();
+	/**
+	* Navigation
+	*/
+	// Current Patrol Target
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	virtual void GetHit_Implementation(const FVector& ImpactPoint) override;
+	/** AI Behavior */
+	void HideHealthBar();
+	void ShowHealthBar();
+	void LoseInterest();
+	void StartPatrolling();
+	void ChaseTarget();
+	bool IsOutsideCombatRadius();
+	bool IsOutsideAttackRadius();
+	bool IsChasing();
+	bool IsAttacking();
+	bool IsDead();
+	bool IsEngaged();
+	void ClearPatrolTimer();
 
-	void DirectionalHitReact(const FVector& ImpactPoint);
-	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+	/** Combat Section*/
+	void StarAttackTimer();
+	void ClearAttackTimer();
+	virtual void HandleDamage(float DamageAmount) override;
+	virtual void AttackEnd() override;
+
+	FTimerHandle AttackTimer;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float AttackMin = 5.f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float AttackMax = 10.f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float PatrollingSpeed = 100.f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float ChasingSpeed = 400.f;
+	
 };

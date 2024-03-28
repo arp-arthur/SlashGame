@@ -11,7 +11,7 @@
 #include "Items/Item.h"
 #include "Items/Weapons/Weapon.h"
 #include "Animation/AnimMontage.h"
-#include "Components/BoxComponent.h"
+
 
 // Sets default values
 ASlashCharacter::ASlashCharacter()
@@ -34,15 +34,6 @@ ASlashCharacter::ASlashCharacter()
 	Eyebrows->SetupAttachment(GetMesh());
 	Eyebrows->AttachmentName = FString("head");
 
-}
-
-void ASlashCharacter::SetWeaponCollisionEnabled(ECollisionEnabled::Type CollisionEnabled)
-{
-	if (EquippedWeapon && EquippedWeapon->GetWeaponBox())
-	{
-		EquippedWeapon->GetWeaponBox()->SetCollisionEnabled(CollisionEnabled);
-		EquippedWeapon->IgnoreActors.Empty();
-	}
 }
 
 // Called when the game starts or when spawned
@@ -124,8 +115,8 @@ void ASlashCharacter::EKeyPressed()
 
 void ASlashCharacter::Attack()
 {
-	const bool bCanAttack = ActionState == EActionState::EAS_Unoccupied && CharacterState == ECharacterState::ECS_EquippedOneHandedWeapon;
-	if (bCanAttack)
+	Super::Attack();
+	if (CanAttack())
 	{
 		this->PlayAttackMontages();
 		ActionState = EActionState::EAS_Attacking;
@@ -135,6 +126,7 @@ void ASlashCharacter::Attack()
 
 void ASlashCharacter::PlayAttackMontages()
 {
+	Super::PlayAttackMontages();
 	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 	if (AnimInstance && AttackMontage)
 	{
@@ -157,6 +149,11 @@ void ASlashCharacter::PlayEquipMontage(const FName& SectionName)
 void ASlashCharacter::AttackEnd()
 {
 	ActionState = EActionState::EAS_Unoccupied;
+}
+
+bool ASlashCharacter::CanAttack()
+{
+	return ActionState == EActionState::EAS_Unoccupied && CharacterState == ECharacterState::ECS_EquippedOneHandedWeapon;;
 }
 
 bool ASlashCharacter::CanDisarm()

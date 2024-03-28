@@ -66,9 +66,21 @@ private:
 	UPROPERTY(EditAnywhere)
 	double PatrolRadius = 200.f;
 
+	UPROPERTY(EditAnywhere)
+	double AttackRadius = 150.f;
+
 
 	FTimerHandle PatrolTimer;
 	void PatrolTimerFinished();
+
+	UPROPERTY(EditAnywhere, Category = "AI Navigation")
+	float WaitMin = 5.f;
+
+	UPROPERTY(EditAnywhere, Category = "AI Navigation")
+	float WaitMax = 10.f;
+
+	EEnemyState EnemyState = EEnemyState::EES_Patrolling;
+
 
 	/**
 	* Animations Montages

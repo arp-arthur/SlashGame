@@ -97,11 +97,6 @@ private:
 	UPROPERTY(EditAnywhere, Category = "AI Navigation")
 	float PatrolWaitMax = 10.f;
 
-	/**
-	* Navigation
-	*/
-	// Current Patrol Target
-
 
 	/** AI Behavior */
 	void HideHealthBar();
